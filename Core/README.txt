@@ -1,2 +1,2 @@
 Copy Core files here.
-Here should be dll/, include/, lib/, etc.
+Here should be directories like dll/, include/, lib/, etc.
