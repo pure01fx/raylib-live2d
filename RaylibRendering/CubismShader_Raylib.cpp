@@ -7,6 +7,10 @@ using Live2D::Cubism::Framework::csmFloat32; // TODO
 
 // TODO
 const int MAX_VERTEX_COUNT = 8192;
+// memory size of GPU memory:
+// 7 (shader count) * 32 (RENDERER_BUFFER_OBJECT_QUEUE_COUNT) * 8192 (MAX_VERTEX_COUNT) * (sizeof(csmFloat32) * 4 + sizeof(uint16_t))
+// ~ 32MB GPU memory
+// TODO: can be optimized
 
 CubismShader_Raylib* CubismShader_Raylib::m_instance;
 
@@ -23,6 +27,12 @@ CubismShader_Raylib* CubismShader_Raylib::GetInstance()
 const CubismShaderSet* CubismShader_Raylib::GetShader(int id)
 {
     return &m_shaders[id];
+}
+
+const CubismRenderBufferSet* CubismShader_Raylib::GetBuffer(const CubismShaderSet* shaderSet)
+{
+    const_cast<CubismShaderSet*>(shaderSet)->currentBuffer = (shaderSet->currentBuffer + 1) % RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT;
+    return &shaderSet->buffers[shaderSet->currentBuffer];
 }
 
 void CubismShader_Raylib::LoadShaders()
@@ -112,25 +122,30 @@ void CubismShader_Raylib::LoadShaders()
 
     for (auto& shaderSet : m_shaders)
     {
-        // VAO
-        shaderSet.vertexArrayObjectId = rlLoadVertexArray();
-        rlEnableVertexArray(shaderSet.vertexArrayObjectId);
+        shaderSet.currentBuffer = 0;
+        for (int i = 0; i < RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT; ++i)
+        {
+            auto& buffer = shaderSet.buffers[i];
+            // VAO
+            buffer.vertexArrayObjectId = rlLoadVertexArray();
+            rlEnableVertexArray(buffer.vertexArrayObjectId);
 
-        // VBO (attribPosition)
-        shaderSet.vertexBufferPositionId = rlLoadVertexBuffer(NULL, sizeof(csmFloat32) * MAX_VERTEX_COUNT * 2, true);
-        rlEnableVertexAttribute(shaderSet.attribPosition);
-        rlSetVertexAttribute(shaderSet.attribPosition, 2, RL_FLOAT, false, sizeof(csmFloat32) * 2, NULL);
+            // VBO (attribPosition)
+            buffer.vertexBufferPositionId = rlLoadVertexBuffer(NULL, sizeof(csmFloat32) * MAX_VERTEX_COUNT * 2, true);
+            rlEnableVertexAttribute(shaderSet.attribPosition);
+            rlSetVertexAttribute(shaderSet.attribPosition, 2, RL_FLOAT, false, sizeof(csmFloat32) * 2, NULL);
 
-        // VBO (attribTexCoord)
-        shaderSet.vertexBufferTexcoordId = rlLoadVertexBuffer(NULL, sizeof(csmFloat32) * MAX_VERTEX_COUNT * 2, true);
-        rlEnableVertexAttribute(shaderSet.attribTexCoord);
-        rlSetVertexAttribute(shaderSet.attribTexCoord, 2, RL_FLOAT, false, sizeof(csmFloat32) * 2, NULL);
+            // VBO (attribTexCoord)
+            buffer.vertexBufferTexcoordId = rlLoadVertexBuffer(NULL, sizeof(csmFloat32) * MAX_VERTEX_COUNT * 2, true);
+            rlEnableVertexAttribute(shaderSet.attribTexCoord);
+            rlSetVertexAttribute(shaderSet.attribTexCoord, 2, RL_FLOAT, false, sizeof(csmFloat32) * 2, NULL);
 
-        // EBO
-        shaderSet.vertexBufferElementId = rlLoadVertexBufferElement(NULL, sizeof(uint16_t) * MAX_VERTEX_COUNT, true);
+            // EBO
+            buffer.vertexBufferElementId = rlLoadVertexBufferElement(NULL, sizeof(uint16_t) * MAX_VERTEX_COUNT, true);
 
-        rlDisableVertexArray();
-        rlDisableVertexBuffer();
-        rlDisableVertexBufferElement();
+            rlDisableVertexArray();
+            rlDisableVertexBuffer();
+            rlDisableVertexBufferElement();
+        }
     }
 }

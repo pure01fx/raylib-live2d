@@ -1,7 +1,7 @@
 target_sources(${LIB_NAME}
   PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/CubismRenderer_Raylib420.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/CubismRenderer_Raylib420.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/CubismRenderer_Raylib.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/CubismRenderer_Raylib.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CubismShader_Raylib.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CubismShader_Raylib.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CubismClippingContext.cpp

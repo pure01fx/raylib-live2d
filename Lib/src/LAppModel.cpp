@@ -17,7 +17,7 @@
 #include <Motion/CubismMotionQueueEntry.hpp>
 #include "LAppDefine.hpp"
 #include "LAppPal.hpp"
-#include "CubismRenderer_Raylib420.hpp"
+#include "CubismRenderer_Raylib.hpp"
 #include "raylib.h"
 
 using namespace Live2D::Cubism::Framework;

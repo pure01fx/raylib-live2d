@@ -1,6 +1,17 @@
 #pragma once
 #include <array>
 
+// TODO
+const int RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT = 32;
+
+struct CubismRenderBufferSet
+{
+	unsigned int vertexArrayObjectId;
+	unsigned int vertexBufferPositionId;
+	unsigned int vertexBufferTexcoordId;
+	unsigned int vertexBufferElementId;
+};
+
 struct CubismShaderSet
 {
 	unsigned int shaderProgram;
@@ -15,10 +26,8 @@ struct CubismShaderSet
 	int uniformMultiplyColor;
 	int uniformScreenColor;
 
-	unsigned int vertexArrayObjectId;
-	unsigned int vertexBufferPositionId;
-	unsigned int vertexBufferTexcoordId;
-	unsigned int vertexBufferElementId;
+	int currentBuffer;
+	CubismRenderBufferSet buffers[RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT];
 };
 
 enum CubismShaderNames
@@ -39,6 +48,8 @@ public:
 	static CubismShader_Raylib* GetInstance();
 
 	const CubismShaderSet* GetShader(int id);
+
+	static const CubismRenderBufferSet* GetBuffer(const CubismShaderSet* shaderSet); // contains const_cast
 
 private:
 	static CubismShader_Raylib* m_instance;

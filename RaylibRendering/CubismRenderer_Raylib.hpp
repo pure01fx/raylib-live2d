@@ -48,6 +48,10 @@ private:
         bool drawingMask, const CubismClippingContext* cc
     );
 
+    void EnableOffscreenBuffer();
+
+    void DisableOffscreenBuffer();
+
     bool m_isExternalColorBuffer;
     unsigned int m_oldFbo = 0;
     unsigned int m_fbo = 0;
