@@ -11,6 +11,7 @@
 #include <Id/CubismId.hpp>
 #include <Id/CubismIdManager.hpp>
 #include <CubismFramework.hpp>
+#include "CubismRenderer_Raylib.hpp"
 
 using namespace Csm;
 using namespace LAppDefine;
@@ -75,11 +76,12 @@ extern "C" {
 	void l2dUpdateModel(void* model1) {
 		LAppModel* model = reinterpret_cast<LAppModel*>(model1);
 		model->Update();
+		model->Draw(projection);
 	}
 
 	void l2dDrawModel(void* model1) {
 		LAppModel* model = reinterpret_cast<LAppModel*>(model1);
-		model->Draw(projection);
+		model->GetRenderer<CubismRenderer_Raylib>()->DoDrawModel1();
 		EndBlendMode();
 	}
 

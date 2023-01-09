@@ -9,6 +9,7 @@
 #include "Math/CubismVector2.hpp"
 #include "Type/csmMap.hpp"
 #include "CubismClippingContext.hpp"
+#include "CubismShader_Raylib.hpp"
 
 using Live2D::Cubism::Framework::Rendering::CubismRenderer;
 using Live2D::Cubism::Framework::CubismModel;
@@ -23,9 +24,13 @@ public:
 
     void SetFrameBuffer(int fbo);
 
+    void DrawMeshInternal1(csmInt32 textureNo, csmFloat32 opacity, CubismBlendMode colorBlendMode, csmBool invertedMask, const CubismTextureColor& multiplyColor, const CubismTextureColor& screenColor, bool drawingMask, const CubismClippingContext* cc);
+
     void InitializeOffscreenFrameBuffer(unsigned int externalColorBuffer = 0);
 
     void LoadModelTexture(int cubismTextureId, const char* path);
+
+    void DoDrawModel1();
 
 protected:
     virtual ~CubismRenderer_Raylib() override;
@@ -41,10 +46,8 @@ protected:
     virtual void RestoreProfile() override;
 
 private:
-    void DrawMeshInternal(csmInt32 textureNo, csmInt32 indexCount, csmInt32 vertexCount,
-        const csmUint16* indexArray, const csmFloat32* vertexArray, const csmFloat32* uvArray,
-        csmFloat32 opacity, CubismBlendMode colorBlendMode, csmBool invertedMask,
-        const CubismTextureColor& multiplyColor, const CubismTextureColor& screenColor,
+    void DrawMeshInternal(csmInt32 indexCount, csmInt32 vertexCount, const csmUint16* indexArray,
+        const csmFloat32* vertexArray, const csmFloat32* uvArray, csmBool invertedMask,
         bool drawingMask, const CubismClippingContext* cc
     );
 
@@ -56,6 +59,8 @@ private:
     unsigned int m_oldFbo = 0;
     unsigned int m_fbo = 0;
     unsigned int m_colorBuffer = 0;
+
+    RenderBufferManager m_batch;
 
     std::pair<int, int> m_clippingMaskBufferSize = { 256, 256 };         // TODO: set it?
     std::vector<CubismClippingContext*> m_clippingContextsForMask;       // all masks, m_clippingContextsForDraw.Distinct().NotNull()

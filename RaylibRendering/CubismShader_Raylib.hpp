@@ -1,8 +1,7 @@
 #pragma once
 #include <array>
-
-// TODO
-const int RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT = 32;
+#include <vector>
+#include <deque>
 
 struct CubismRenderBufferSet
 {
@@ -10,6 +9,8 @@ struct CubismRenderBufferSet
 	unsigned int vertexBufferPositionId;
 	unsigned int vertexBufferTexcoordId;
 	unsigned int vertexBufferElementId;
+
+	int indexCount;
 };
 
 struct CubismShaderSet
@@ -25,9 +26,6 @@ struct CubismShaderSet
 	int uniformBaseColor;
 	int uniformMultiplyColor;
 	int uniformScreenColor;
-
-	int currentBuffer;
-	CubismRenderBufferSet buffers[RAYLIB_LIVE2D_RENDERER_BUFFER_OBJECT_QUEUE_COUNT];
 };
 
 enum CubismShaderNames
@@ -49,12 +47,41 @@ public:
 
 	const CubismShaderSet* GetShader(int id);
 
-	static const CubismRenderBufferSet* GetBuffer(const CubismShaderSet* shaderSet); // contains const_cast
-
 private:
 	static CubismShader_Raylib* m_instance;
 
 	std::array<CubismShaderSet, CubismShaderNames_CountFlag> m_shaders; // I really don't know why there're 19 shader sets in the official OpenGL renderer...
 
 	void LoadShaders();
+};
+
+class RenderBufferManager
+{
+public:
+	RenderBufferManager();
+
+	void ClearBatch();
+
+	void CreateBuffer(int shaderId, const CubismShaderSet*& shaderSet, CubismRenderBufferSet*& bufferSet);
+
+	void BeginApplyBatch();
+
+	void ManuallyApplyBuffer();
+
+	void EndApplyBatch();
+
+	~RenderBufferManager();
+
+private:
+
+	void ApplyBuffer(const CubismRenderBufferSet& buffer);
+
+	typedef std::deque<CubismRenderBufferSet> BufferSetList;
+	typedef std::vector<CubismRenderBufferSet*> Batch;
+
+	Batch m_batch;
+	Batch::iterator m_applyingBatch;
+
+	std::array<BufferSetList, CubismShaderNames_CountFlag> m_pool;
+	std::array<BufferSetList::iterator, CubismShaderNames_CountFlag> m_poolTail;
 };

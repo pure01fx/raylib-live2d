@@ -27,6 +27,7 @@ CubismRenderer* CubismRenderer::Create()
 	return CSM_NEW CubismRenderer_Raylib();
 }
 
+
 void CubismRenderer_Raylib::Initialize(CubismModel* model)
 {
 	if (model->IsUsingMasking()) // else: m_clippingContextsForDraw.size() = 0
@@ -125,10 +126,7 @@ void CubismRenderer_Raylib::DisableOffscreenBuffer()
 
 void CubismRenderer_Raylib::DoDrawModel()
 {
-	rlDisableScissorTest();
-	rlDisableDepthTest();
-	rlEnableColorBlend();
-
+	m_batch.ClearBatch();
 	if (GetModel()->IsUsingMasking())
 	{
 		// setup clipping context
@@ -142,11 +140,6 @@ void CubismRenderer_Raylib::DoDrawModel()
 		if (activeClipCount == 0)
 		{
 			goto NO_ACTIVE_MASK;
-		}
-
-		if (!IsUsingHighPrecisionMask())
-		{
-			EnableOffscreenBuffer();
 		}
 
 		if (IsUsingHighPrecisionMask())
@@ -265,27 +258,16 @@ void CubismRenderer_Raylib::DoDrawModel()
 					IsCulling(GetModel()->GetDrawableCulling(clip) != 0);
 
 					DrawMeshInternal(
-						GetModel()->GetDrawableTextureIndex(clip),
 						GetModel()->GetDrawableVertexIndexCount(clip),
 						GetModel()->GetDrawableVertexCount(clip),
 						GetModel()->GetDrawableVertexIndices(clip),
 						GetModel()->GetDrawableVertices(clip),
 						reinterpret_cast<const csmFloat32*>(GetModel()->GetDrawableVertexUvs(clip)),
-						GetModel()->GetDrawableOpacity(clip),
-						CubismRenderer::CubismBlendMode_Normal,
 						false,
-						GetModel()->GetMultiplyColor(clip),
-						GetModel()->GetScreenColor(clip),
 						true,
-						cc
-					);
+						cc);
 				}
 			}
-		}
-
-		if (!IsUsingHighPrecisionMask())
-		{
-			DisableOffscreenBuffer();
 		}
 
 	NO_ACTIVE_MASK:
@@ -310,6 +292,126 @@ void CubismRenderer_Raylib::DoDrawModel()
 		CubismClippingContext* cc = m_clippingContextsForDraw.size() > 0 ? m_clippingContextsForDraw[drawableIndex] : nullptr;
 		if (cc && cc->active && IsUsingHighPrecisionMask())
 		{
+			// TODO: not active?
+			for (const auto clipDrawIndex : cc->clippings)
+			{
+				if (!GetModel()->GetDrawableDynamicFlagVertexPositionsDidChange(clipDrawIndex))
+				{
+					continue;
+				}
+
+				IsCulling(GetModel()->GetDrawableCulling(clipDrawIndex) != 0); // TODO: changed
+
+				DrawMeshInternal(
+					GetModel()->GetDrawableVertexIndexCount(clipDrawIndex),
+					GetModel()->GetDrawableVertexCount(clipDrawIndex),
+					GetModel()->GetDrawableVertexIndices(clipDrawIndex),
+					GetModel()->GetDrawableVertices(clipDrawIndex),
+					reinterpret_cast<const csmFloat32*>(GetModel()->GetDrawableVertexUvs(clipDrawIndex)),
+					false,
+					true,
+					// drawing mask
+					cc);
+			}
+		}
+
+		IsCulling(GetModel()->GetDrawableCulling(drawableIndex) != 0); // TODO: changed
+
+		DrawMeshInternal(
+			GetModel()->GetDrawableVertexIndexCount(drawableIndex),
+			GetModel()->GetDrawableVertexCount(drawableIndex),
+			GetModel()->GetDrawableVertexIndices(drawableIndex),
+			GetModel()->GetDrawableVertices(drawableIndex),
+			reinterpret_cast<const csmFloat32*>(GetModel()->GetDrawableVertexUvs(drawableIndex)),
+			GetModel()->GetDrawableInvertedMask(drawableIndex),
+			false,
+			// not drawing mask
+			cc && cc->active ? cc : nullptr);
+	}
+
+	rlDisableVertexArray();
+	rlDisableShader();
+}
+
+void CubismRenderer_Raylib::DoDrawModel1()
+{
+	m_batch.BeginApplyBatch();
+
+	rlDisableScissorTest();
+	rlDisableDepthTest();
+	rlEnableColorBlend();
+
+	if (GetModel()->IsUsingMasking())
+	{
+		// setup clipping context
+		int activeClipCount = 0;
+		for (auto clippingContext : m_clippingContextsForMask)
+		{
+			if (clippingContext->active)
+			{
+				activeClipCount = 1;
+				break;
+			}
+		}
+
+		if (activeClipCount == 0)
+		{
+			goto NO_ACTIVE_MASK;
+		}
+
+		if (!IsUsingHighPrecisionMask())
+		{
+			EnableOffscreenBuffer();
+		}
+
+		if (!IsUsingHighPrecisionMask())
+		{
+			for (auto cc : m_clippingContextsForMask)
+			{
+				for (auto clip : cc->clippings)
+				{
+					// 頂点情報が更新されておらず、信頼性がない場合は描画をパスする
+					// TODO: really?
+					if (!GetModel()->GetDrawableDynamicFlagVertexPositionsDidChange(clip))
+					{
+						continue;
+					}
+
+					IsCulling(GetModel()->GetDrawableCulling(clip) != 0);
+
+					DrawMeshInternal1(
+						GetModel()->GetDrawableTextureIndex(clip),
+						GetModel()->GetDrawableOpacity(clip),
+						CubismRenderer::CubismBlendMode_Normal,
+						false,
+						GetModel()->GetMultiplyColor(clip),
+						GetModel()->GetScreenColor(clip),
+						true,
+						cc);
+				}
+			}
+		}
+
+		if (!IsUsingHighPrecisionMask())
+		{
+			DisableOffscreenBuffer();
+		}
+
+	NO_ACTIVE_MASK:
+		(void)0;
+	}
+
+	for (const auto drawableIndex : m_sortedDrawables)
+	{
+		if (!GetModel()->GetDrawableDynamicFlagIsVisible(drawableIndex))
+		{
+			continue;
+		}
+
+		CubismClippingContext* cc = m_clippingContextsForDraw.size() > 0 ? m_clippingContextsForDraw[drawableIndex] : nullptr;
+
+		if (cc && cc->active && IsUsingHighPrecisionMask())
+		{
 			EnableOffscreenBuffer();
 
 			// TODO: not active?
@@ -322,19 +424,16 @@ void CubismRenderer_Raylib::DoDrawModel()
 
 				IsCulling(GetModel()->GetDrawableCulling(clipDrawIndex) != 0); // TODO: changed
 
-				DrawMeshInternal(
+				DrawMeshInternal1(
 					GetModel()->GetDrawableTextureIndex(clipDrawIndex),
-					GetModel()->GetDrawableVertexIndexCount(clipDrawIndex),
-					GetModel()->GetDrawableVertexCount(clipDrawIndex),
-					GetModel()->GetDrawableVertexIndices(clipDrawIndex),
-					GetModel()->GetDrawableVertices(clipDrawIndex),
-					reinterpret_cast<const csmFloat32*>(GetModel()->GetDrawableVertexUvs(clipDrawIndex)),
 					GetModel()->GetDrawableOpacity(clipDrawIndex),
 					CubismRenderer::CubismBlendMode_Normal,
-					false, // not inverted
+					false,
+					// not inverted
 					GetModel()->GetMultiplyColor(clipDrawIndex),
 					GetModel()->GetScreenColor(clipDrawIndex),
-					true, // drawing mask
+					true,
+					// drawing mask
 					cc);
 			}
 
@@ -343,22 +442,19 @@ void CubismRenderer_Raylib::DoDrawModel()
 
 		IsCulling(GetModel()->GetDrawableCulling(drawableIndex) != 0); // TODO: changed
 
-		DrawMeshInternal(
+		DrawMeshInternal1(
 			GetModel()->GetDrawableTextureIndex(drawableIndex),
-			GetModel()->GetDrawableVertexIndexCount(drawableIndex),
-			GetModel()->GetDrawableVertexCount(drawableIndex),
-			GetModel()->GetDrawableVertexIndices(drawableIndex),
-			GetModel()->GetDrawableVertices(drawableIndex),
-			reinterpret_cast<const csmFloat32*>(GetModel()->GetDrawableVertexUvs(drawableIndex)),
 			GetModel()->GetDrawableOpacity(drawableIndex),
 			GetModel()->GetDrawableBlendMode(drawableIndex),
 			GetModel()->GetDrawableInvertedMask(drawableIndex),
 			GetModel()->GetMultiplyColor(drawableIndex),
 			GetModel()->GetScreenColor(drawableIndex),
-			false, // not drawing mask
-			cc && cc->active ? cc : nullptr
-		);
+			false,
+			// not drawing mask
+			cc && cc->active ? cc : nullptr);
 	}
+
+	m_batch.EndApplyBatch();
 }
 
 const int GL_ZERO = 0;
@@ -368,13 +464,35 @@ const int GL_ONE_MINUS_SRC_ALPHA = 0x303;
 const int GL_DST_COLOR = 0x306;
 const int GL_FUNC_ADD = 0x8006;
 
-void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 textureNo, csmInt32 indexCount, csmInt32 vertexCount, const csmUint16* indexArray, const csmFloat32* vertexArray, const csmFloat32* uvArray, csmFloat32 opacity, CubismBlendMode colorBlendMode, csmBool invertedMask, const CubismTextureColor& multiplyColor, const CubismTextureColor& screenColor, bool drawingMask, const CubismClippingContext* cc)
+void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 indexCount, csmInt32 vertexCount, const csmUint16* indexArray, const csmFloat32* vertexArray, const csmFloat32* uvArray, csmBool invertedMask, bool drawingMask, const CubismClippingContext* cc)
+{
+	const CubismShaderSet* shaderSet;
+	CubismRenderBufferSet* bufferSet;
+
+	if (drawingMask)
+	{
+		m_batch.CreateBuffer(CubismShaderNames_SetupMask, shaderSet, bufferSet);
+	}
+	else
+	{
+		m_batch.CreateBuffer(1 + ((cc != nullptr) ? (invertedMask ? 2 : 1) : 0) + (IsPremultipliedAlpha() ? 3 : 0), shaderSet, bufferSet);
+	}
+
+	rlEnableVertexArray(bufferSet->vertexArrayObjectId);
+	rlUpdateVertexBuffer(bufferSet->vertexBufferPositionId, vertexArray, sizeof(csmFloat32) * vertexCount * 2, 0);
+	rlUpdateVertexBuffer(bufferSet->vertexBufferTexcoordId, uvArray, sizeof(csmFloat32) * vertexCount * 2, 0);
+	rlUpdateVertexBufferElements(bufferSet->vertexBufferElementId, indexArray, sizeof(csmUint16) * indexCount, 0);
+
+	bufferSet->indexCount = indexCount;
+}
+
+
+void CubismRenderer_Raylib::DrawMeshInternal1(csmInt32 textureNo, csmFloat32 opacity, CubismBlendMode colorBlendMode, csmBool invertedMask, const CubismTextureColor& multiplyColor, const CubismTextureColor& screenColor, bool drawingMask, const CubismClippingContext* cc)
 {
 	const auto textureId = m_textureIdMapping[textureNo];
 	CSM_ASSERT(textureId);
 
 	IsCulling() ? rlEnableBackfaceCulling() : rlDisableBackfaceCulling(); // TODO: restore it. We assume that we use CCW only so we don't change front face here.
-
 	CubismTextureColor modelColorRGBA = GetModelColor();
 	if (!drawingMask)
 	{
@@ -388,18 +506,14 @@ void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 textureNo, csmInt32 indexC
 	}
 
 	const CubismShaderSet* shaderSet;
-	const CubismRenderBufferSet* bufferSet;
 
 	if (drawingMask)
 	{
 		shaderSet = CubismShader_Raylib::GetInstance()->GetShader(CubismShaderNames_SetupMask);
-		bufferSet = CubismShader_Raylib::GetBuffer(shaderSet);
-		
 
 		rlSetBlendFactorsSeparate(GL_ZERO, GL_ONE_MINUS_SRC_COLOR, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA, GL_FUNC_ADD, GL_FUNC_ADD);
 		rlSetBlendMode(RL_BLEND_CUSTOM_SEPARATE);
 		rlEnableShader(shaderSet->shaderProgram);
-		rlEnableVertexArray(bufferSet->vertexArrayObjectId);
 
 		rlActiveTextureSlot(0);
 		rlEnableTexture(textureId);
@@ -418,7 +532,6 @@ void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 textureNo, csmInt32 indexC
 	else
 	{
 		shaderSet = CubismShader_Raylib::GetInstance()->GetShader(1 + ((cc != nullptr) ? (invertedMask ? 2 : 1) : 0) + (IsPremultipliedAlpha() ? 3 : 0));
-		bufferSet = CubismShader_Raylib::GetBuffer(shaderSet);
 
 		switch (colorBlendMode)
 		{
@@ -439,7 +552,6 @@ void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 textureNo, csmInt32 indexC
 		rlSetBlendMode(RL_BLEND_CUSTOM_SEPARATE);
 
 		rlEnableShader(shaderSet->shaderProgram);
-		rlEnableVertexArray(bufferSet->vertexArrayObjectId);
 
 		if (cc)
 		{
@@ -461,15 +573,7 @@ void CubismRenderer_Raylib::DrawMeshInternal(csmInt32 textureNo, csmInt32 indexC
 		rlSetUniform(shaderSet->uniformScreenColor, &screenColor.R, RL_SHADER_UNIFORM_VEC4, 1);
 	}
 
-	rlUpdateVertexBuffer(bufferSet->vertexBufferPositionId, vertexArray, sizeof(csmFloat32) * vertexCount * 2, 0);
-	rlUpdateVertexBuffer(bufferSet->vertexBufferTexcoordId, uvArray, sizeof(csmFloat32) * vertexCount * 2, 0);
-	rlUpdateVertexBufferElements(bufferSet->vertexBufferElementId, indexArray, sizeof(csmUint16) * indexCount, 0);
-	rlDrawVertexArrayElements(0, indexCount, NULL);
-	rlDisableVertexArray();
-	rlDisableVertexBuffer();
-	rlDisableVertexBufferElement();
-
-	rlDisableShader();
+	m_batch.ManuallyApplyBuffer();
 }
 
 void CubismRenderer_Raylib::InitializeOffscreenFrameBuffer(unsigned int externalColorBuffer)
